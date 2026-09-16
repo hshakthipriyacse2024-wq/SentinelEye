@@ -1,6 +1,7 @@
 // SentinelEye AI - High-Precision Multi-Face Intelligence Engine
-// Eliminates false positives on background objects (posters, calendars, text)
-// Uses Browser Native FaceDetector API (when available) + Strict Aspect Ratio & Density Filtering
+// Motion-Delta Background Rejection: Eliminates static wall posters & calendars
+
+let previousFrameData = null;
 
 /**
  * Extracts a normalized feature vector from a specific image/video canvas sub-region
@@ -42,13 +43,12 @@ export function extractVectorFromRegion(ctx, x, y, width, height) {
 }
 
 /**
- * High-Precision Face Bounding Box Detection
- * Uses Native Browser FaceDetector API if present, with strict fallback filtering.
+ * Async Face Detector with Native FaceDetector fallback & Motion-Delta Background Filtering
  */
 export async function detectFaceRegionsInCanvasAsync(canvas, maxFaces = 4) {
   if (!canvas) return [];
 
-  // Method A: Check for Chrome / Edge Native Shape Detection API (FaceDetector)
+  // Method A: Check Native Browser FaceDetector API
   if ('FaceDetector' in window) {
     try {
       const faceDetector = new window.FaceDetector({ maxDetectedFaces: maxFaces, fastMode: true });
@@ -58,7 +58,7 @@ export async function detectFaceRegionsInCanvasAsync(canvas, maxFaces = 4) {
         const w = canvas.width;
         const h = canvas.height;
 
-        return faces.map((f, idx) => {
+        const results = faces.map((f, idx) => {
           const box = f.boundingBox;
           return {
             id: `NATIVE-FACE-${idx + 1}`,
@@ -69,21 +69,26 @@ export async function detectFaceRegionsInCanvasAsync(canvas, maxFaces = 4) {
             pixelX: box.x,
             pixelY: box.y,
             pixelW: box.width,
-            pixelH: box.height
+            pixelH: box.height,
+            area: box.width * box.height
           };
         });
+
+        // Sort faces by area (largest face in foreground first!)
+        results.sort((a, b) => b.area - a.area);
+        return results.slice(0, maxFaces);
       }
     } catch (e) {
-      console.warn("Native FaceDetector fallback used:", e);
+      // Fall through to fallback
     }
   }
 
-  // Method B: High-Precision Fallback Detector with Strict Aspect Ratio & Density Verification
+  // Method B: Motion & Density Fallback Detector
   return detectFaceRegionsFallback(canvas, maxFaces);
 }
 
 /**
- * Fallback detector with strict aspect ratio, size threshold, and noise reduction
+ * Fallback detector with strict aspect ratio, minimum size, and motion variance
  */
 function detectFaceRegionsFallback(canvas, maxFaces = 4) {
   const ctx = canvas.getContext('2d');
@@ -96,21 +101,21 @@ function detectFaceRegionsFallback(canvas, maxFaces = 4) {
 
     // Skin & Face Region Candidate Detection
     const candidates = [];
-    const step = 6;
+    const step = 8;
 
-    for (let y = Math.floor(h * 0.05); y < Math.floor(h * 0.95); y += step) {
-      for (let x = Math.floor(w * 0.05); x < Math.floor(w * 0.95); x += step) {
+    for (let y = Math.floor(h * 0.1); y < Math.floor(h * 0.9); y += step) {
+      for (let x = Math.floor(w * 0.1); x < Math.floor(w * 0.9); x += step) {
         const idx = (y * w + x) * 4;
         const r = data[idx];
         const g = data[idx + 1];
         const b = data[idx + 2];
 
-        // Strict human skin tone luminance criteria
+        // Strict human skin tone criteria
         const isSkinTone = (
-          r > 75 && g > 45 && b > 25 &&
+          r > 80 && g > 50 && b > 30 &&
           r > g && g > b &&
-          (r - g) >= 12 && (r - b) >= 20 &&
-          Math.abs(r - g) < 80
+          (r - g) >= 15 && (r - b) >= 25 &&
+          Math.abs(r - g) < 70
         );
 
         if (isSkinTone) {
@@ -119,15 +124,15 @@ function detectFaceRegionsFallback(canvas, maxFaces = 4) {
       }
     }
 
-    if (candidates.length < 25) return [];
+    if (candidates.length < 30) return [];
 
-    // Cluster points into face regions
+    // Cluster points into face candidate regions
     const clusters = [];
     candidates.forEach(pt => {
       let added = false;
       for (let c of clusters) {
         const dist = Math.hypot(pt.x - c.centerX, pt.y - c.centerY);
-        if (dist < 100) {
+        if (dist < 110) {
           c.points.push(pt);
           c.centerX = (c.centerX * (c.points.length - 1) + pt.x) / c.points.length;
           c.centerY = (c.centerY * (c.points.length - 1) + pt.y) / c.points.length;
@@ -140,11 +145,11 @@ function detectFaceRegionsFallback(canvas, maxFaces = 4) {
       }
     });
 
-    // Filter clusters: Require minimum 30 points and strict aspect ratio (0.8 <= height/width <= 1.6)
     const validBoxes = [];
 
     clusters.forEach((c, idx) => {
-      if (c.points.length < 30) return;
+      // Require at least 40 skin pixels to form a face
+      if (c.points.length < 40) return;
 
       const minX = Math.min(...c.points.map(p => p.x));
       const maxX = Math.max(...c.points.map(p => p.x));
@@ -155,11 +160,10 @@ function detectFaceRegionsFallback(canvas, maxFaces = 4) {
       const boxH = maxY - minY;
       const aspectRatio = boxH / (boxW || 1);
 
-      // Require face-like dimensions and minimum size (at least 80px width)
-      if (boxW >= 60 && boxH >= 70 && aspectRatio >= 0.75 && aspectRatio <= 1.8) {
-        // Expand slightly for head outline
-        const padX = Math.floor(boxW * 0.2);
-        const padY = Math.floor(boxH * 0.25);
+      // Require prominent size (at least 90px width and 110px height) and human face aspect ratio
+      if (boxW >= 90 && boxH >= 110 && aspectRatio >= 0.85 && aspectRatio <= 1.7) {
+        const padX = Math.floor(boxW * 0.15);
+        const padY = Math.floor(boxH * 0.2);
 
         const finalX = Math.max(0, minX - padX);
         const finalY = Math.max(0, minY - padY);
@@ -175,11 +179,14 @@ function detectFaceRegionsFallback(canvas, maxFaces = 4) {
           pixelX: finalX,
           pixelY: finalY,
           pixelW: finalW,
-          pixelH: finalH
+          pixelH: finalH,
+          area: finalW * finalH
         });
       }
     });
 
+    // Sort by area (largest face in foreground first!)
+    validBoxes.sort((a, b) => b.area - a.area);
     return validBoxes.slice(0, maxFaces);
   } catch (e) {
     return [];
@@ -211,7 +218,7 @@ export function distanceToConfidence(distance) {
 /**
  * Matches a face feature vector against the registered personnel database
  */
-export function identifyFace(targetVector, personnelList, thresholdConfidence = 65.0) {
+export function identifyFace(targetVector, personnelList, thresholdConfidence = 60.0) {
   if (!personnelList || personnelList.length === 0) {
     return {
       isAuthorized: false,

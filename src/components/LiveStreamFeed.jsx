@@ -18,9 +18,9 @@ export default function LiveStreamFeed({
   const [webcamError, setWebcamError] = useState(null);
   const [targetLock, setTargetLock] = useState(false);
 
-  // Active Simulated Face Preset: 0, 1, 2, 3, or 4 faces in frame
-  const [simulatedFacePreset, setSimulatedFacePreset] = useState(1); // Default 1 face in frame
-  const [includeUnauthorizedInSim, setIncludeUnauthorizedInSim] = useState(true);
+  // Active Face Count Limit: 0, 1, 2, 3, or 4 faces in frame
+  const [simulatedFacePreset, setSimulatedFacePreset] = useState(1); // Default 1 face focus
+  const [includeUnauthorizedInSim, setIncludeUnauthorizedInSim] = useState(false);
 
   // Active Recognized Faces currently detected in the video frame
   const [detectedFaces, setDetectedFaces] = useState([]);
@@ -90,8 +90,8 @@ export default function LiveStreamFeed({
         drawSimulatedCanvas();
       }
 
-      // Perform Real-Time High-Precision Face Scan Every 600ms
-      if (now - lastScanTime > 600) {
+      // Perform Real-Time High-Precision Face Scan Every 500ms
+      if (now - lastScanTime > 500) {
         lastScanTime = now;
         await performFaceScan();
       }
@@ -109,6 +109,11 @@ export default function LiveStreamFeed({
   // Perform Face Scan over Video Frame
   const performFaceScan = async () => {
     if (streamSource === 'WEBCAM' && videoRef.current && videoRef.current.readyState === 4) {
+      if (simulatedFacePreset === 0) {
+        setDetectedFaces([]);
+        return;
+      }
+
       // Process Live Webcam Video Frame
       const tempCanvas = document.createElement('canvas');
       tempCanvas.width = videoRef.current.videoWidth || 640;
@@ -116,19 +121,21 @@ export default function LiveStreamFeed({
       const ctx = tempCanvas.getContext('2d');
       ctx.drawImage(videoRef.current, 0, 0, tempCanvas.width, tempCanvas.height);
 
-      // Async Face Detection (Native FaceDetector API or strict aspect-ratio detector)
-      const boxes = await detectFaceRegionsInCanvasAsync(tempCanvas, 4);
+      // Detect prominent face bounding box candidates in camera image
+      const allBoxes = await detectFaceRegionsInCanvasAsync(tempCanvas, 4);
+
+      // STRICT CAP based on user's selected "FACES IN FRAME" button (1 face, 2 faces, etc.)
+      const boxes = allBoxes.slice(0, simulatedFacePreset);
 
       if (!boxes || boxes.length === 0) {
-        // If NO human face detected in camera, clear all boxes!
         setDetectedFaces([]);
         return;
       }
 
-      // Process each detected face region in the camera
+      // Process each face region in camera
       const recognized = boxes.map((box, idx) => {
         const vec = extractVectorFromRegion(ctx, box.pixelX, box.pixelY, box.pixelW, box.pixelH);
-        const match = identifyFace(vec, personnelList, 65.0);
+        const match = identifyFace(vec, personnelList, 55.0);
         const isAuth = match.isAuthorized;
         const person = isAuth ? match.matchedPerson : null;
 
@@ -136,8 +143,8 @@ export default function LiveStreamFeed({
           id: `WEBCAM-FACE-${idx + 1}`,
           x: box.xPct,
           y: box.yPct,
-          width: Math.max(18, box.widthPct),
-          height: Math.max(26, box.heightPct),
+          width: Math.max(20, box.widthPct),
+          height: Math.max(28, box.heightPct),
           isAuthorized: isAuth,
           person: person,
           name: isAuth ? person.name : "UNAUTHORIZED PERSON",
@@ -401,7 +408,7 @@ export default function LiveStreamFeed({
             </div>
           </div>
 
-          {/* DYNAMIC FACE BOUNDING BOX OVERLAYS (EXACTLY MATCHING REAL HUMAN FACES IN FRAME) */}
+          {/* DYNAMIC FACE BOUNDING BOX OVERLAYS (STRICTLY CAPPED TO 1, 2, 3 FACES) */}
           {detectedFaces.map((face) => (
             <div
               key={face.id}

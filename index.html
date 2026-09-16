@@ -9,6 +9,39 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS Play CDN for instant guaranteed styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              defense: {
+                dark: '#070a0f',
+                card: '#0d131d',
+                border: '#1a2638',
+                accent: '#00f0ff',
+                alert: '#ff003c',
+                warning: '#ffb700',
+                success: '#00ff66',
+                purple: '#9d00ff'
+              }
+            },
+            fontFamily: {
+              orbitron: ['Orbitron', 'sans-serif'],
+              mono: ['Fira Code', 'monospace'],
+              sans: ['Inter', 'sans-serif']
+            },
+            animation: {
+              'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'radar-spin': 'spin 4s linear infinite',
+              'ping-fast': 'ping 0.8s cubic-bezier(0, 0, 0.2, 1) infinite',
+            }
+          }
+        }
+      }
+    </script>
   </head>
   <body class="bg-[#05080e] text-slate-100 antialiased selection:bg-cyan-500 selection:text-black overflow-x-hidden min-h-screen">
     <div id="root"></div>

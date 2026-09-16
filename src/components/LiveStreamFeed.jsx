@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Radio, Eye, Flame, Crosshair, RefreshCw, Zap, Lock, Navigation, Users, UserCheck, AlertTriangle, ShieldCheck, UserX } from 'lucide-react';
-import { identifyFace, extractVectorFromRegion, detectFaceRegionsInCanvas } from '../utils/faceIntelligence';
+import { identifyFace, extractVectorFromRegion, detectFaceRegionsInCanvasAsync } from '../utils/faceIntelligence';
 import { audioAlerts } from '../utils/AudioAlertManager';
 import TacticalMap from './TacticalMap';
 
@@ -19,7 +19,7 @@ export default function LiveStreamFeed({
   const [targetLock, setTargetLock] = useState(false);
 
   // Active Simulated Face Preset: 0, 1, 2, 3, or 4 faces in frame
-  const [simulatedFacePreset, setSimulatedFacePreset] = useState(2); // Default 2 faces in frame
+  const [simulatedFacePreset, setSimulatedFacePreset] = useState(1); // Default 1 face in frame
   const [includeUnauthorizedInSim, setIncludeUnauthorizedInSim] = useState(true);
 
   // Active Recognized Faces currently detected in the video frame
@@ -68,7 +68,7 @@ export default function LiveStreamFeed({
   useEffect(() => {
     let lastScanTime = Date.now();
 
-    const renderLoop = () => {
+    const renderLoop = async () => {
       const now = Date.now();
 
       // Update telemetry
@@ -90,10 +90,10 @@ export default function LiveStreamFeed({
         drawSimulatedCanvas();
       }
 
-      // Perform Real-Time Face Scan Every 800ms
-      if (now - lastScanTime > 800) {
+      // Perform Real-Time High-Precision Face Scan Every 600ms
+      if (now - lastScanTime > 600) {
         lastScanTime = now;
-        performFaceScan();
+        await performFaceScan();
       }
 
       animationFrameRef.current = requestAnimationFrame(renderLoop);
@@ -104,10 +104,10 @@ export default function LiveStreamFeed({
     return () => {
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [streamSource, visionMode, targetLock, simulatedFacePreset, includeUnauthorizedInSim, personnelList]);
+  }, [streamSource, visionMode, targetLock, simulatedFacePreset, includeUnauthorizedInSim, personnelList, detectedFaces]);
 
-  // Perform Face Scan over the Video Frame
-  const performFaceScan = () => {
+  // Perform Face Scan over Video Frame
+  const performFaceScan = async () => {
     if (streamSource === 'WEBCAM' && videoRef.current && videoRef.current.readyState === 4) {
       // Process Live Webcam Video Frame
       const tempCanvas = document.createElement('canvas');
@@ -116,11 +116,11 @@ export default function LiveStreamFeed({
       const ctx = tempCanvas.getContext('2d');
       ctx.drawImage(videoRef.current, 0, 0, tempCanvas.width, tempCanvas.height);
 
-      // Detect face bounding box candidates in camera image
-      const boxes = detectFaceRegionsInCanvas(tempCanvas, 4);
+      // Async Face Detection (Native FaceDetector API or strict aspect-ratio detector)
+      const boxes = await detectFaceRegionsInCanvasAsync(tempCanvas, 4);
 
-      if (boxes.length === 0) {
-        // If 0 faces detected in camera, clear bounding boxes!
+      if (!boxes || boxes.length === 0) {
+        // If NO human face detected in camera, clear all boxes!
         setDetectedFaces([]);
         return;
       }
@@ -128,7 +128,7 @@ export default function LiveStreamFeed({
       // Process each detected face region in the camera
       const recognized = boxes.map((box, idx) => {
         const vec = extractVectorFromRegion(ctx, box.pixelX, box.pixelY, box.pixelW, box.pixelH);
-        const match = identifyFace(vec, personnelList, 70.0);
+        const match = identifyFace(vec, personnelList, 65.0);
         const isAuth = match.isAuthorized;
         const person = isAuth ? match.matchedPerson : null;
 
@@ -136,8 +136,8 @@ export default function LiveStreamFeed({
           id: `WEBCAM-FACE-${idx + 1}`,
           x: box.xPct,
           y: box.yPct,
-          width: Math.max(16, box.widthPct),
-          height: Math.max(24, box.heightPct),
+          width: Math.max(18, box.widthPct),
+          height: Math.max(26, box.heightPct),
           isAuthorized: isAuth,
           person: person,
           name: isAuth ? person.name : "UNAUTHORIZED PERSON",
@@ -169,10 +169,10 @@ export default function LiveStreamFeed({
 
       const generatedFaces = [];
       const presets = [
-        { x: 25, y: 30, w: 18, h: 32, isAuth: true, personIdx: 0 },
-        { x: 52, y: 32, w: 18, h: 32, isAuth: true, personIdx: 1 },
-        { x: 74, y: 35, w: 18, h: 32, isAuth: !includeUnauthorizedInSim, personIdx: 2 },
-        { x: 38, y: 55, w: 18, h: 32, isAuth: true, personIdx: 3 }
+        { x: 38, y: 30, w: 22, h: 36, isAuth: !includeUnauthorizedInSim, personIdx: 0 },
+        { x: 18, y: 32, w: 20, h: 34, isAuth: true, personIdx: 1 },
+        { x: 64, y: 35, w: 20, h: 34, isAuth: true, personIdx: 2 },
+        { x: 42, y: 55, w: 20, h: 34, isAuth: true, personIdx: 3 }
       ];
 
       for (let i = 0; i < Math.min(simulatedFacePreset, presets.length); i++) {
@@ -308,7 +308,7 @@ export default function LiveStreamFeed({
                   simulatedFacePreset === num ? 'bg-cyan-900 text-cyan-300 border border-cyan-500' : 'text-slate-500 hover:text-slate-300'
                 }`}
               >
-                {num === 0 ? 'NO FACES' : `${num} FACE${num > 1 ? 'S' : ''}`}
+                {num === 0 ? '0 FACES' : `${num} FACE${num > 1 ? 'S' : ''}`}
               </button>
             ))}
           </div>
@@ -401,7 +401,7 @@ export default function LiveStreamFeed({
             </div>
           </div>
 
-          {/* DYNAMIC FACE BOUNDING BOX OVERLAYS (EXACTLY MATCHING 0, 1, 2, 3, 4 FACES IN FRAME) */}
+          {/* DYNAMIC FACE BOUNDING BOX OVERLAYS (EXACTLY MATCHING REAL HUMAN FACES IN FRAME) */}
           {detectedFaces.map((face) => (
             <div
               key={face.id}
@@ -437,7 +437,7 @@ export default function LiveStreamFeed({
                 <Crosshair className={`w-6 h-6 ${face.isAuthorized ? 'text-emerald-400 opacity-80' : 'text-red-500 animate-spin'}`} />
               </div>
 
-              {/* Name Tag Footer (ONLY DISPLAYED WHEN FACE IS DETECTED!) */}
+              {/* Name Tag Footer (ONLY DISPLAYED WHEN REAL FACE IS DETECTED!) */}
               <div className={`-mb-8 px-2 py-1 rounded text-[11px] font-mono ${
                 face.isAuthorized ? 'bg-emerald-950/95 text-emerald-100 border border-emerald-700' : 'bg-red-950/95 text-red-100 border border-red-700'
               }`}>
@@ -461,7 +461,7 @@ export default function LiveStreamFeed({
           <div className="absolute bottom-3 left-3 right-3 z-20 flex justify-between items-center bg-black/70 backdrop-blur-md px-4 py-2 rounded-lg border border-cyan-500/30 text-xs font-mono">
             <div className="flex items-center space-x-4">
               <span className="text-slate-400">STATUS:</span>
-              <span className="text-cyan-300 font-bold">{detectedFaces.length > 0 ? `${detectedFaces.length} FACE(S) LOCKED` : 'IDLE PATROL'}</span>
+              <span className="text-cyan-300 font-bold">{detectedFaces.length > 0 ? `${detectedFaces.length} HUMAN FACE(S) LOCKED` : 'IDLE PATROL'}</span>
             </div>
 
             <div className="flex items-center space-x-3">
@@ -509,7 +509,7 @@ export default function LiveStreamFeed({
           <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
             {detectedFaces.length === 0 ? (
               <div className="p-4 text-center text-slate-500 font-mono text-xs italic bg-slate-950/50 rounded border border-slate-800">
-                No faces currently detected in camera frame.
+                No human faces currently detected in camera frame.
               </div>
             ) : (
               detectedFaces.map((face) => (

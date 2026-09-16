@@ -48,6 +48,30 @@ export const INITIAL_PERSONNEL = [
     photoUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400",
     featureVector: [0.49, 0.73, 0.25, 0.61, 0.84, 0.15, 0.93, 0.38],
     accessAreas: ["Sector Bravo", "Sector Charlie", "Perimeter Fence South"]
+  },
+  {
+    id: "AUTH-9910",
+    name: "Officer Maya Lin",
+    rank: "Perimeter Drone Operator",
+    clearance: "Level 3 - Operational",
+    department: "Aerial Defense Unit",
+    registeredAt: "2026-09-08T10:00:00Z",
+    status: "Active",
+    photoUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=400",
+    featureVector: [0.72, 0.35, 0.58, 0.80, 0.19, 0.94, 0.41, 0.63],
+    accessAreas: ["Drone Hangar", "Sector Alpha", "Control Center"]
+  },
+  {
+    id: "AUTH-6634",
+    name: "Tech. David Chen",
+    rank: "Substation Specialist",
+    clearance: "Level 2 - Maintenance",
+    department: "Infrastructure & Power",
+    registeredAt: "2026-09-12T08:30:00Z",
+    status: "Active",
+    photoUrl: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=400",
+    featureVector: [0.28, 0.66, 0.91, 0.33, 0.75, 0.42, 0.88, 0.14],
+    accessAreas: ["Sector Charlie", "Substation B"]
   }
 ];
 
@@ -64,8 +88,8 @@ export const INITIAL_INCIDENTS = [
     status: "TARGET_LOCKED",
     droneId: "SENTINEL-DRONE-01",
     snapshotUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400",
-    notes: "Subject detected approaching perimeter wall with thermal heat signature. Refused visual identification. Autonomous target lock engaged.",
-    actionsTaken: ["Siren Broadcast Engaged", "Command Center Alerted", "GPS Tracking Locked"]
+    notes: "Group of 4 individuals detected approaching perimeter wall. 3 authorized team members recognized; 1 unknown intruder flagged.",
+    actionsTaken: ["Multi-Target Lock Engaged", "Command Center Alerted", "GPS Tracking Locked"]
   },
   {
     id: "INC-2026-0819",
@@ -94,8 +118,8 @@ export const INITIAL_INCIDENTS = [
     status: "RESOLVED",
     droneId: "SENTINEL-DRONE-01",
     snapshotUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=400",
-    notes: "Routine perimeter walkthrough. Autonomous face recognition matched Cmdr. Sarah Vance with 96.8% confidence. Clearance verified.",
-    actionsTaken: ["Identity Logged", "Continuous Surveillance Maintained"]
+    notes: "Routine perimeter walkthrough. Multi-face recognition identified Cmdr. Sarah Vance, Lt. Alex Mercer, and Tech. David Chen simultaneously.",
+    actionsTaken: ["Multi-Identity Logged", "Continuous Surveillance Maintained"]
   }
 ];
 
